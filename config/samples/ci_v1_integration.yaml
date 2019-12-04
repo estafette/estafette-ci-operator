@@ -1,0 +1,7 @@
+apiVersion: ci.estafette.io/v1
+kind: Integration
+metadata:
+  name: integration-sample
+spec:
+  # Add fields here
+  foo: bar

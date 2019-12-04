@@ -1,0 +1,16 @@
+version: "2"
+domain: estafette.io
+repo: github.com/estafette/estafette-ci-operator
+resources:
+- group: ci
+  version: v1
+  kind: Cluster
+- group: ci
+  version: v1
+  kind: Integration
+- group: ci
+  version: v1
+  kind: Credential
+- group: ci
+  version: v1
+  kind: TrustedImage

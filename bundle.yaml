@@ -1,0 +1,79 @@
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  name: estafette-ci-operator
+  namespace: ${NAMESPACE}
+  labels:
+    app: estafette-ci-operator
+rules:
+# allow namespace for jobs to be created
+- apiGroups: [""]
+  resources:
+  - namespace
+  verbs:
+  - get
+  - list
+  - create
+# allow crds to be created by the operator
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - '*'
+# allow crds to be monitored and processed
+- apiGroups:
+  - ci.estafette.io
+  resources:
+  - configs
+  - integrations
+  - credentials
+  - trustedimages
+  verbs:
+  - '*'
+# create / update configmaps and secrets from crds
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - secrets
+  verbs:
+  - '*'
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: estafette-ci-operator
+  namespace: ${NAMESPACE}
+  labels:
+    app: estafette-ci-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: estafette-ci-operator
+  template:
+    metadata:
+      labels:
+        app: estafette-ci-operator
+        version: ${VERSION}
+    spec:
+      containers:
+      - image: estafette/estafette-ci-operator:${VERSION}
+        name: estafette-ci-operator
+        resources:
+          limits:
+            cpu: 200m
+            memory: 200Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+      serviceAccountName: estafette-ci-operator
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: estafette-ci-operator
+  namespace: ${NAMESPACE}
+  labels:
+    app: estafette-ci-operator

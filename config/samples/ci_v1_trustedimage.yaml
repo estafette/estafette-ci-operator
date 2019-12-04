@@ -1,0 +1,7 @@
+apiVersion: ci.estafette.io/v1
+kind: TrustedImage
+metadata:
+  name: trustedimage-sample
+spec:
+  # Add fields here
+  foo: bar
