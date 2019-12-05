@@ -4,4 +4,13 @@ metadata:
   name: trustedimage-sample
 spec:
   # Add fields here
-  foo: bar
+  name: trustedimage-sample
+  type: extension
+  whitelistedPipelines: github.com/estafette/.+
+  path: extensions/estafette
+  runPrivileged: true
+  runDocker: true
+  allowCommands: true
+  injectedCredentialTypes:
+  - container-registry
+  - github-api-token
