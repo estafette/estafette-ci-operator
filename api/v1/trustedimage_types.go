@@ -13,8 +13,6 @@ type TrustedImageSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 	// +kubebuilder:validation:Required
-	Name string `json:"name"`
-	// +kubebuilder:validation:Required
 	Type string `json:"type"`
 	// +kubebuilder:validation:Optional
 	WhitelistedPipelines string `json:"whitelistedPipelines,omitempty"`
