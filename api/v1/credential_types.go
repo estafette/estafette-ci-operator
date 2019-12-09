@@ -11,6 +11,15 @@ import (
 type CredentialSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+
+	// +kubebuilder:validation:Required
+	Type string `json:"type"`
+	// +kubebuilder:validation:Optional
+	WhitelistedTrustedImages string `json:"whitelistedTrustedImages,omitempty"`
+	// +kubebuilder:validation:Optional
+	WhitelistedPipelines string `json:"whitelistedPipelines,omitempty"`
+	// +kubebuilder:validation:Optional
+	AdditionalProperties map[string]interface{} `json:"additionalProperties,omitempty"`
 }
 
 // CredentialStatus defines the observed state of Credential
