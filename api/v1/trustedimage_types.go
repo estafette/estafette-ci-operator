@@ -13,10 +13,6 @@ type TrustedImageSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 	// +kubebuilder:validation:Required
-	Type string `json:"type"`
-	// +kubebuilder:validation:Optional
-	WhitelistedPipelines string `json:"whitelistedPipelines,omitempty"`
-	// +kubebuilder:validation:Required
 	Path string `json:"path"`
 	// +kubebuilder:validation:Optional
 	RunPrivileged bool `json:"runPrivileged"`
@@ -25,8 +21,9 @@ type TrustedImageSpec struct {
 	// +kubebuilder:validation:Optional
 	AllowCommands bool `json:"allowCommands"`
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:UniqueItems
 	InjectedCredentialTypes []string `json:"injectedCredentialTypes,omitempty"`
+	// +kubebuilder:validation:Optional
+	WhitelistedPipelines string `json:"whitelistedPipelines,omitempty"`
 }
 
 // TrustedImageStatus defines the observed state of TrustedImage
