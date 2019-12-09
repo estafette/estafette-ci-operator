@@ -15,11 +15,11 @@ type TrustedImageSpec struct {
 	// +kubebuilder:validation:Required
 	Path string `json:"path"`
 	// +kubebuilder:validation:Optional
-	RunPrivileged bool `json:"runPrivileged"`
+	RunPrivileged bool `json:"runPrivileged,omitempty"`
 	// +kubebuilder:validation:Optional
-	RunDocker bool `json:"runDocker"`
+	RunDocker bool `json:"runDocker,omitempty"`
 	// +kubebuilder:validation:Optional
-	AllowCommands bool `json:"allowCommands"`
+	AllowCommands bool `json:"allowCommands,omitempty"`
 	// +kubebuilder:validation:Optional
 	InjectedCredentialTypes []string `json:"injectedCredentialTypes,omitempty"`
 	// +kubebuilder:validation:Optional
