@@ -1,0 +1,96 @@
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - namespace
+  verbs:
+  - create
+  - get
+  - list
+- apiGroups:
+  - ci.estafette.io
+  resources:
+  - clusters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ci.estafette.io
+  resources:
+  - clusters/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ci.estafette.io
+  resources:
+  - credentials
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ci.estafette.io
+  resources:
+  - credentials/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ci.estafette.io
+  resources:
+  - integrations
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ci.estafette.io
+  resources:
+  - integrations/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ci.estafette.io
+  resources:
+  - trustedimages
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ci.estafette.io
+  resources:
+  - trustedimages/status
+  verbs:
+  - get
+  - patch
+  - update
