@@ -27,6 +27,7 @@ type CredentialSpec struct {
 type CredentialStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+	ConfigMap string `json:"configmap,omitempty"`
 }
 
 // +kubebuilder:object:root=true

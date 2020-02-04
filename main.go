@@ -47,34 +47,44 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controllers.ClusterReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("Cluster"),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Cluster")
-		os.Exit(1)
-	}
-	if err = (&controllers.IntegrationReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("Integration"),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Integration")
-		os.Exit(1)
-	}
+	// if err = (&controllers.ClusterReconciler{
+	// 	Client: mgr.GetClient(),
+	// 	Log:    ctrl.Log.WithName("controllers").WithName("Cluster"),
+	// }).SetupWithManager(mgr); err != nil {
+	// 	setupLog.Error(err, "unable to create controller", "controller", "Cluster")
+	// 	os.Exit(1)
+	// }
+	// if err = (&controllers.IntegrationReconciler{
+	// 	Client: mgr.GetClient(),
+	// 	Log:    ctrl.Log.WithName("controllers").WithName("Integration"),
+	// }).SetupWithManager(mgr); err != nil {
+	// 	setupLog.Error(err, "unable to create controller", "controller", "Integration")
+	// 	os.Exit(1)
+	// }
 	if err = (&controllers.CredentialReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("Credential"),
+		Client:   mgr.GetClient(),
+		Log:      ctrl.Log.WithName("controllers").WithName("Credential"),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("credential-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Credential")
 		os.Exit(1)
 	}
-	if err = (&controllers.TrustedImageReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("TrustedImage"),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "TrustedImage")
-		os.Exit(1)
-	}
+	// if err = (&controllers.TrustedImageReconciler{
+	// 	Client: mgr.GetClient(),
+	// 	Log:    ctrl.Log.WithName("controllers").WithName("TrustedImage"),
+	// }).SetupWithManager(mgr); err != nil {
+	// 	setupLog.Error(err, "unable to create controller", "controller", "TrustedImage")
+	// 	os.Exit(1)
+	// }
+
+	// if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+	// 	if err = (&civ1.Credential{}).SetupWebhookWithManager(mgr); err != nil {
+	// 		setupLog.Error(err, "unable to create webhook", "webhook", "Credential")
+	// 		os.Exit(1)
+	// 	}
+	// }
+
 	// +kubebuilder:scaffold:builder
 
 	setupLog.Info("starting manager")

@@ -2,13 +2,15 @@ package controllers
 
 import (
 	"fmt"
+	civ1 "github.com/estafette/estafette-ci-operator/api/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 )
 
-func SetControllerReferences(owner, controlled metav1.Object, scheme *runtime.Scheme) error {
+func SetControllerReferences(owner, controlled metav1.Object, scheme *runtime.Scheme, isController bool) error {
 	ro, ok := owner.(runtime.Object)
 	if !ok {
 		return fmt.Errorf("%T is not a runtime.Object, cannot call SetControllerReference", owner)
@@ -31,7 +33,21 @@ func SetControllerReferences(owner, controlled metav1.Object, scheme *runtime.Sc
 	}
 
 	// Create a new ref
+
+	// blockOwnerDeletion := true
+	// isController := true
+	// ref := metav1.OwnerReference{
+	// 	APIVersion:         gvk.GroupVersion().String(),
+	// 	Kind:               gvk.Kind,
+	// 	Name:               gvk.Kind,
+	// 	UID:                owner.GetUID(),
+	// 	BlockOwnerDeletion: &blockOwnerDeletion,
+	// 	Controller:         &isController,
+	// }
+
 	ref := *metav1.NewControllerRef(owner, schema.GroupVersionKind{Group: gvk.Group, Version: gvk.Version, Kind: gvk.Kind})
+	ref.Controller = &isController
+	ref.BlockOwnerDeletion = &isController
 
 	existingRefs := controlled.GetOwnerReferences()
 	fi := -1
@@ -49,6 +65,10 @@ func SetControllerReferences(owner, controlled metav1.Object, scheme *runtime.Sc
 	// Update owner references
 	controlled.SetOwnerReferences(existingRefs)
 	return nil
+}
+
+func IsControlledByThisCredential(credential civ1.Credential, configmap corev1.ConfigMap) bool {
+	return true
 }
 
 func referSameObject(a, b metav1.OwnerReference) bool {
