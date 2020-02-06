@@ -2,11 +2,10 @@ package controllers
 
 import (
 	"fmt"
-	civ1 "github.com/estafette/estafette-ci-operator/api/v1"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 )
 
@@ -32,19 +31,6 @@ func SetControllerReferences(owner, controlled metav1.Object, scheme *runtime.Sc
 		return err
 	}
 
-	// Create a new ref
-
-	// blockOwnerDeletion := true
-	// isController := true
-	// ref := metav1.OwnerReference{
-	// 	APIVersion:         gvk.GroupVersion().String(),
-	// 	Kind:               gvk.Kind,
-	// 	Name:               gvk.Kind,
-	// 	UID:                owner.GetUID(),
-	// 	BlockOwnerDeletion: &blockOwnerDeletion,
-	// 	Controller:         &isController,
-	// }
-
 	ref := *metav1.NewControllerRef(owner, schema.GroupVersionKind{Group: gvk.Group, Version: gvk.Version, Kind: gvk.Kind})
 	ref.Controller = &isController
 	ref.BlockOwnerDeletion = &isController
@@ -67,8 +53,68 @@ func SetControllerReferences(owner, controlled metav1.Object, scheme *runtime.Sc
 	return nil
 }
 
-func IsControlledByThisCredential(credential civ1.Credential, configmap corev1.ConfigMap) bool {
-	return true
+func RemoveControllerReference(namespacedName types.NamespacedName, controlled metav1.Object, apiGVStr, kind string) error {
+	ownerNs := namespacedName.Namespace
+	if ownerNs != "" {
+		objNs := controlled.GetNamespace()
+		if objNs == "" {
+			return fmt.Errorf("cluster-scoped resource must not have a namespace-scoped owner, owner's namespace %s", ownerNs)
+		}
+		if ownerNs != objNs {
+			return fmt.Errorf("cross-namespace owner references are disallowed, owner's namespace %s, obj's namespace %s", ownerNs, controlled.GetNamespace())
+		}
+	}
+
+	// Create a new ref
+
+	blockOwnerDeletion := true
+	isController := true
+	ref := metav1.OwnerReference{
+		APIVersion:         apiGVStr,
+		Kind:               kind,
+		Name:               namespacedName.Name,
+		UID:                "",
+		BlockOwnerDeletion: &blockOwnerDeletion,
+		Controller:         &isController,
+	}
+
+	existingRefs := controlled.GetOwnerReferences()
+	fi := -1
+	for i, r := range existingRefs {
+		if referSameObject(ref, r) {
+			fi = i
+		}
+	}
+	if fi != -1 {
+		existingRefs[fi] = existingRefs[len(existingRefs)-1]
+		// Update owner references
+		controlled.SetOwnerReferences(existingRefs[:len(existingRefs)-1])
+	}
+
+	return nil
+}
+
+func IsControlledByThisObject(owner, controlled metav1.Object, scheme *runtime.Scheme) (bool, error) {
+	ro, ok := owner.(runtime.Object)
+	if !ok {
+		return false, fmt.Errorf("%T is not a runtime.Object, cannot call SetControllerReference", owner)
+	}
+
+	gvk, err := apiutil.GVKForObject(ro, scheme)
+	if err != nil {
+		return false, err
+	}
+
+	ref := *metav1.NewControllerRef(owner, schema.GroupVersionKind{Group: gvk.Group, Version: gvk.Version, Kind: gvk.Kind})
+
+	existingRefs := controlled.GetOwnerReferences()
+	for _, r := range existingRefs {
+		if referSameObject(ref, r) {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 func referSameObject(a, b metav1.OwnerReference) bool {

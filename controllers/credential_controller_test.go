@@ -2,30 +2,30 @@ package controllers
 
 import (
 	"context"
-	// "fmt"
 	"time"
-	// "os"
 
 	civ1 "github.com/estafette/estafette-ci-operator/api/v1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	// corev1 "k8s.io/api/core/v1"
+	yaml "gopkg.in/yaml.v2"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
 var _ = Describe("Credential Controller", func() {
 
-	const timeout = time.Second * 30
+	const timeout = time.Second * 10
 	const interval = time.Second * 1
 	const charset = "abcdefghijklmnopqrstuvwxyz"
 
-	var firstKeyName = "credential-1" + randomStringWithCharset(10, charset)
-	var secondKeyName = "credential-2" + randomStringWithCharset(10, charset)
+	var credentialKeyName = "credential-" + randomStringWithCharset(10, charset)
+	var privateCredentialKeyName = "credential-private-" + randomStringWithCharset(10, charset)
+	var gkeCredentialKeyName = "credential-gke-" + randomStringWithCharset(10, charset)
 
 	BeforeEach(func() {
 		// failed test runs that don't clean up leave resources behind.
-		keys := []string{firstKeyName, secondKeyName}
+		keys := []string{credentialKeyName, privateCredentialKeyName}
 		for _, value := range keys {
 
 			cred := &civ1.Credential{
@@ -41,7 +41,7 @@ var _ = Describe("Credential Controller", func() {
 
 	AfterEach(func() {
 		// Add any teardown steps that needs to be executed after each test
-		keys := []string{firstKeyName, secondKeyName}
+		keys := []string{credentialKeyName, privateCredentialKeyName}
 		for _, value := range keys {
 
 			cred := &civ1.Credential{
@@ -55,10 +55,6 @@ var _ = Describe("Credential Controller", func() {
 		}
 	})
 
-	// Add Tests for OpenAPI validation (or additional CRD features) specified in
-	// your API definition.
-	// Avoid adding tests for vanilla CRUD operations because they would
-	// test Kubernetes API server, which isn't the goal here.
 	Context("One crededential", func() {
 		It("Should handle credential correctly", func() {
 
@@ -74,7 +70,12 @@ var _ = Describe("Credential Controller", func() {
 			}
 
 			key := types.NamespacedName{
-				Name:      firstKeyName,
+				Name:      credentialKeyName,
+				Namespace: "default",
+			}
+
+			configMapKey := types.NamespacedName{
+				Name:      "estafette-external-credentials",
 				Namespace: "default",
 			}
 
@@ -89,33 +90,36 @@ var _ = Describe("Credential Controller", func() {
 
 			By("Creating the credential successfully")
 			Expect(k8sClient.Create(context.Background(), toCreate)).Should(Succeed())
-			time.Sleep(time.Second * 5)
+			time.Sleep(time.Second * 2)
 
 			fetched := &civ1.Credential{}
 			Eventually(func() string {
 				_ = k8sClient.Get(context.Background(), key, fetched)
 				return fetched.Status.ConfigMap
-			}, timeout, interval).ShouldNot(BeEmpty())
+			}, timeout, interval).Should(Equal(configMapKey.Name))
 
-			// By("Creating/Updating configmap successfully")
-			// updatedACLs := []databricksv1alpha1.SecretScopeACL{
-			// 	{Principal: "admins", Permission: "READ"},
-			// }
+			By("Creating configmap successfully")
+			fetchedConfigMap := &corev1.ConfigMap{}
 
-			// updateSpec := databricksv1alpha1.SecretScopeSpec{
-			// 	InitialManagePrincipal: "users",
-			// 	SecretScopeSecrets:     make([]databricksv1alpha1.SecretScopeSecret, 0),
-			// 	SecretScopeACLs:        updatedACLs,
-			// }
+			expectedConfig := map[string]interface{}{
+				"name":                 credentialKeyName,
+				"type":                 "container-registry",
+				"whitelistedPipelines": "github.com/estafette/.+",
+				"repository":           "estafette",
+				"private":              false,
+				"username":             "estafettesvc",
+				"password":             "supersecretpassword",
+			}
+			expectedCredentialsData := map[string]interface{}{
+				"credentials": []interface{}{expectedConfig},
+			}
+			expectedYaml, err := yaml.Marshal(expectedCredentialsData)
+			Expect(err).To(BeNil())
 
-			// fetched.Spec = updateSpec
-
-			// Expect(k8sClient.Update(context.Background(), fetched)).Should(Succeed())
-			// fetchedUpdated := &databricksv1alpha1.SecretScope{}
-			// Eventually(func() []databricksv1alpha1.SecretScopeACL {
-			// 	_ = k8sClient.Get(context.Background(), key, fetchedUpdated)
-			// 	return fetchedUpdated.Spec.SecretScopeACLs
-			// }, timeout, interval).Should(Equal(updatedACLs))
+			Eventually(func() string {
+				_ = k8sClient.Get(context.Background(), configMapKey, fetchedConfigMap)
+				return fetchedConfigMap.Data["credentials-config.yaml"]
+			}, timeout, interval).Should(Equal(string(expectedYaml)))
 
 			By("Deleting the credential")
 			Eventually(func() error {
@@ -131,296 +135,140 @@ var _ = Describe("Credential Controller", func() {
 		})
 	})
 
-	// Context("Secret Scope with secrets", func() {
-	// 	It("Should handle scope and secrets correctly", func() {
+	Context("Two crededentials", func() {
+		It("Should handle two credentials correctly", func() {
 
-	// 		// setup k8s secret
-	// 		k8SecretKey := types.NamespacedName{
-	// 			Name:      "t-k8secret",
-	// 			Namespace: "default",
-	// 		}
+			specGkeCredential := civ1.CredentialSpec{
+				Type:                     "kubernetes-engine",
+				WhitelistedTrustedImages: "extensions/gke",
+				AdditionalProperties: map[string]interface{}{
+					"project": "estafette-project",
+					"cluster": "estafette-cluster",
+					"defaults": map[string]interface{}{
+						"namespace": "estafette-ns",
+					},
+				},
+			}
 
-	// 		data := make(map[string][]byte)
-	// 		data["username"] = []byte("Josh")
-	// 		k8Secret := &v1.Secret{
-	// 			ObjectMeta: metav1.ObjectMeta{
-	// 				Name:      k8SecretKey.Name,
-	// 				Namespace: k8SecretKey.Namespace,
-	// 			},
-	// 			Data: data,
-	// 		}
-	// 		Expect(k8sClient.Create(context.Background(), k8Secret)).Should(Succeed())
-	// 		time.Sleep(time.Second * 8)
-	// 		defer func() {
-	// 			Expect(k8sClient.Delete(context.Background(), k8Secret)).Should(Succeed())
-	// 			time.Sleep(time.Second * 5)
-	// 		}()
+			gkeCredentialKey := types.NamespacedName{
+				Name:      gkeCredentialKeyName,
+				Namespace: "default",
+			}
 
-	// 		secretValue := "secretValue"
-	// 		byteSecretValue := "aGVsbG8="
-	// 		initialSecrets := []databricksv1alpha1.SecretScopeSecret{
-	// 			{Key: "secretKey", StringValue: secretValue},
-	// 			{
-	// 				Key: "secretFromSecret",
-	// 				ValueFrom: &databricksv1alpha1.SecretScopeValueFrom{
-	// 					SecretKeyRef: databricksv1alpha1.SecretScopeKeyRef{
-	// 						Name: "t-k8secret",
-	// 						Key:  "username",
-	// 					},
-	// 				},
-	// 			},
-	// 			{Key: "byteSecretKey", ByteValue: byteSecretValue},
-	// 		}
+			gkeCredentialToCreate := &civ1.Credential{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      gkeCredentialKey.Name,
+					Namespace: gkeCredentialKey.Namespace,
+				},
+				Spec:   specGkeCredential,
+				Status: civ1.CredentialStatus{},
+			}
 
-	// 		spec := databricksv1alpha1.SecretScopeSpec{
-	// 			InitialManagePrincipal: "users",
-	// 			SecretScopeSecrets:     initialSecrets,
-	// 			SecretScopeACLs: []databricksv1alpha1.SecretScopeACL{
-	// 				{Principal: "admins", Permission: "WRITE"},
-	// 				{Principal: "admins", Permission: "READ"},
-	// 				{Principal: "admins", Permission: "MANAGE"},
-	// 			},
-	// 		}
+			privateCredentialSpec := civ1.CredentialSpec{
+				Type: "container-registry",
+				AdditionalProperties: map[string]interface{}{
+					"repository": "gcr.io/estafette/",
+					"private":    true,
+					"username":   "estafettesecretsvc",
+					"password":   "supersupersecretpassword",
+				},
+			}
 
-	// 		key := types.NamespacedName{
-	// 			Name:      secretsKeyName,
-	// 			Namespace: "default",
-	// 		}
+			privateCredentialKey := types.NamespacedName{
+				Name:      privateCredentialKeyName,
+				Namespace: "default",
+			}
 
-	// 		toCreate := &databricksv1alpha1.SecretScope{
-	// 			ObjectMeta: metav1.ObjectMeta{
-	// 				Name:      key.Name,
-	// 				Namespace: key.Namespace,
-	// 			},
-	// 			Spec: spec,
-	// 		}
+			privateCredentialToCreate := &civ1.Credential{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      privateCredentialKey.Name,
+					Namespace: privateCredentialKey.Namespace,
+				},
+				Spec:   privateCredentialSpec,
+				Status: civ1.CredentialStatus{},
+			}
 
-	// 		By("Creating the scope with secrets successfully")
-	// 		Expect(k8sClient.Create(context.Background(), toCreate)).Should(Succeed())
-	// 		time.Sleep(time.Second * 5)
+			configMapKey := types.NamespacedName{
+				Name:      "estafette-external-credentials",
+				Namespace: "default",
+			}
 
-	// 		fetched := &databricksv1alpha1.SecretScope{}
+			By("Creating gke credential successfully")
+			Expect(k8sClient.Create(context.Background(), gkeCredentialToCreate)).Should(Succeed())
+			time.Sleep(time.Second * 2)
 
-	// 		_ = k8sClient.Get(context.Background(), key, fetched)
+			fetchedGkeCredential := &civ1.Credential{}
+			Eventually(func() string {
+				_ = k8sClient.Get(context.Background(), gkeCredentialKey, fetchedGkeCredential)
+				return fetchedGkeCredential.Status.ConfigMap
+			}, timeout, interval).Should(Equal(configMapKey.Name))
 
-	// 		fmt.Println(fetched.IsSubmitted())
+			By("Creating configmap successfully")
+			fetchedConfigMap := &corev1.ConfigMap{}
 
-	// 		Eventually(func() bool {
-	// 			_ = k8sClient.Get(context.Background(), key, fetched)
-	// 			return fetched.IsSubmitted()
-	// 		}, timeout, interval).Should(BeTrue())
+			gkeCredentialExpectedConfig := map[string]interface{}{
+				"name":                     gkeCredentialKeyName,
+				"type":                     "kubernetes-engine",
+				"whitelistedTrustedImages": "extensions/gke",
+				"project":                  "estafette-project",
+				"cluster":                  "estafette-cluster",
+				"defaults": map[string]interface{}{
+					"namespace": "estafette-ns",
+				},
+			}
+			expectedCredentialsData := map[string]interface{}{
+				"credentials": []interface{}{gkeCredentialExpectedConfig},
+			}
+			expectedGkeCredentialYaml, err := yaml.Marshal(expectedCredentialsData)
+			Expect(err).To(BeNil())
 
-	// 		By("Updating secrets successfully")
-	// 		newSecretValue := "newSecretValue"
-	// 		updatedSecrets := []databricksv1alpha1.SecretScopeSecret{
-	// 			{Key: "newSecretKey", StringValue: newSecretValue},
-	// 		}
+			Eventually(func() string {
+				_ = k8sClient.Get(context.Background(), configMapKey, fetchedConfigMap)
+				return fetchedConfigMap.Data["credentials-config.yaml"]
+			}, timeout, interval).Should(Equal(string(expectedGkeCredentialYaml)))
 
-	// 		updateSpec := databricksv1alpha1.SecretScopeSpec{
-	// 			InitialManagePrincipal: "users",
-	// 			SecretScopeSecrets:     updatedSecrets,
-	// 			SecretScopeACLs: []databricksv1alpha1.SecretScopeACL{
-	// 				{Principal: "admins", Permission: "WRITE"},
-	// 				{Principal: "admins", Permission: "READ"},
-	// 			},
-	// 		}
+			By("Creating private credential successfully")
+			Expect(k8sClient.Create(context.Background(), privateCredentialToCreate)).Should(Succeed())
+			time.Sleep(time.Second * 2)
 
-	// 		fetched.Spec = updateSpec
+			fetchedPrivateCredential := &civ1.Credential{}
+			Eventually(func() string {
+				_ = k8sClient.Get(context.Background(), privateCredentialKey, fetchedPrivateCredential)
+				return fetchedPrivateCredential.Status.ConfigMap
+			}, timeout, interval).Should(Equal(configMapKey.Name))
 
-	// 		Expect(k8sClient.Update(context.Background(), fetched)).Should(Succeed())
-	// 		fetchedUpdated := &databricksv1alpha1.SecretScope{}
-	// 		Eventually(func() []databricksv1alpha1.SecretScopeSecret {
-	// 			_ = k8sClient.Get(context.Background(), key, fetchedUpdated)
-	// 			return fetchedUpdated.Spec.SecretScopeSecrets
-	// 		}, timeout, interval).Should(Equal(updatedSecrets))
+			By("Updating the configmap successfully")
+			privateCredentialExpectedConfig := map[string]interface{}{
+				"name":       privateCredentialKeyName,
+				"type":       "container-registry",
+				"repository": "gcr.io/estafette/",
+				"private":    true,
+				"username":   "estafettesecretsvc",
+				"password":   "supersupersecretpassword",
+			}
 
-	// 		By("Deleting the scope")
-	// 		Eventually(func() error {
-	// 			f := &databricksv1alpha1.SecretScope{}
-	// 			_ = k8sClient.Get(context.Background(), key, f)
-	// 			return k8sClient.Delete(context.Background(), f)
-	// 		}, timeout, interval).Should(Succeed())
+			expectedCredentialsData["credentials"] = append(expectedCredentialsData["credentials"].([]interface{}), privateCredentialExpectedConfig)
 
-	// 		Eventually(func() error {
-	// 			f := &databricksv1alpha1.SecretScope{}
-	// 			return k8sClient.Get(context.Background(), key, f)
-	// 		}, timeout, interval).ShouldNot(Succeed())
-	// 	})
-	// })
+			expectedPrivateCredentialYaml, err := yaml.Marshal(expectedCredentialsData)
+			Expect(err).To(BeNil())
 
-	// Context("Secret Scope with ACLs", func() {
-	// 	It("Should handle missing k8s secrets", func() {
-	// 		spec := databricksv1alpha1.SecretScopeSpec{
-	// 			InitialManagePrincipal: "users",
-	// 			SecretScopeSecrets: []databricksv1alpha1.SecretScopeSecret{
-	// 				{
-	// 					Key: "secretFromSecret",
-	// 					ValueFrom: &databricksv1alpha1.SecretScopeValueFrom{
-	// 						SecretKeyRef: databricksv1alpha1.SecretScopeKeyRef{
-	// 							Name: "k8secret",
-	// 							Key:  "username",
-	// 						},
-	// 					},
-	// 				},
-	// 			},
-	// 		}
+			Eventually(func() string {
+				_ = k8sClient.Get(context.Background(), configMapKey, fetchedConfigMap)
+				return fetchedConfigMap.Data["credentials-config.yaml"]
+			}, timeout, interval).Should(Equal(string(expectedPrivateCredentialYaml)))
 
-	// 		key := types.NamespacedName{
-	// 			Name:      aclKeyName,
-	// 			Namespace: "default",
-	// 		}
+			By("Deleting private credential")
+			Eventually(func() error {
+				f := &civ1.Credential{}
+				_ = k8sClient.Get(context.Background(), privateCredentialKey, f)
+				return k8sClient.Delete(context.Background(), f)
+			}, timeout, interval).Should(Succeed())
 
-	// 		toCreate := &databricksv1alpha1.SecretScope{
-	// 			ObjectMeta: metav1.ObjectMeta{
-	// 				Name:      key.Name,
-	// 				Namespace: key.Namespace,
-	// 			},
-	// 			Spec: spec,
-	// 		}
+			Eventually(func() error {
+				f := &civ1.Credential{}
+				return k8sClient.Get(context.Background(), privateCredentialKey, f)
+			}, timeout, interval).ShouldNot(Succeed())
+		})
+	})
 
-	// 		By("Creating the scope successfully")
-	// 		Expect(k8sClient.Create(context.Background(), toCreate)).Should(Succeed())
-	// 		time.Sleep(time.Second * 5)
-
-	// 		By("Scope has not been marked as IsSubmitted")
-	// 		fetched := &databricksv1alpha1.SecretScope{}
-	// 		Eventually(func() bool {
-	// 			_ = k8sClient.Get(context.Background(), key, fetched)
-	// 			return fetched.IsSubmitted()
-	// 		}, timeout, interval).Should(BeFalse())
-
-	// 		// setup k8s secret
-	// 		k8SecretKey := types.NamespacedName{
-	// 			Name:      "k8secret",
-	// 			Namespace: "default",
-	// 		}
-
-	// 		data := make(map[string][]byte)
-	// 		data["username"] = []byte("Josh")
-	// 		k8Secret := &v1.Secret{
-	// 			ObjectMeta: metav1.ObjectMeta{
-	// 				Name:      k8SecretKey.Name,
-	// 				Namespace: k8SecretKey.Namespace,
-	// 			},
-	// 			Data: data,
-	// 		}
-	// 		Expect(k8sClient.Create(context.Background(), k8Secret)).Should(Succeed())
-	// 		time.Sleep(time.Second * 8)
-	// 		defer func() {
-	// 			Expect(k8sClient.Delete(context.Background(), k8Secret)).Should(Succeed())
-	// 			time.Sleep(time.Second * 5)
-	// 		}()
-
-	// 		By("Scope has been marked as IsSubmitted")
-
-	// 		fetched = &databricksv1alpha1.SecretScope{}
-	// 		Eventually(func() bool {
-	// 			_ = k8sClient.Get(context.Background(), key, fetched)
-	// 			return fetched.IsSubmitted()
-	// 		}, timeout, interval).Should(BeTrue())
-
-	// 		By("Deleting the scope")
-	// 		Eventually(func() error {
-	// 			f := &databricksv1alpha1.SecretScope{}
-	// 			_ = k8sClient.Get(context.Background(), key, f)
-	// 			return k8sClient.Delete(context.Background(), f)
-	// 		}, timeout, interval).Should(Succeed())
-
-	// 		Eventually(func() error {
-	// 			f := &databricksv1alpha1.SecretScope{}
-	// 			return k8sClient.Get(context.Background(), key, f)
-	// 		}, timeout, interval).ShouldNot(Succeed())
-	// 	})
-	// })
-
-	// Context("Secret Scope with ACLs", func() {
-	// 	It("Should fail if secret scope exist in Databricks", func() {
-
-	// 		var o databricks.DBClientOption
-	// 		o.Host = os.Getenv("DATABRICKS_HOST")
-	// 		o.Token = os.Getenv("DATABRICKS_TOKEN")
-
-	// 		var APIClient dbazure.DBClient
-	// 		APIClient.Init(o)
-
-	// 		Expect(APIClient.Secrets().CreateSecretScope(aclKeyName, "users")).Should(Succeed())
-	// 		defer func() {
-	// 			Expect(APIClient.Secrets().DeleteSecretScope(aclKeyName)).Should(Succeed())
-	// 			time.Sleep(time.Second * 5)
-	// 		}()
-
-	// 		spec := databricksv1alpha1.SecretScopeSpec{
-	// 			InitialManagePrincipal: "users",
-	// 			SecretScopeSecrets: []databricksv1alpha1.SecretScopeSecret{
-	// 				{
-	// 					Key: "secretFromSecret",
-	// 					ValueFrom: &databricksv1alpha1.SecretScopeValueFrom{
-	// 						SecretKeyRef: databricksv1alpha1.SecretScopeKeyRef{
-	// 							Name: "k8secret",
-	// 							Key:  "username",
-	// 						},
-	// 					},
-	// 				},
-	// 			},
-	// 		}
-
-	// 		key := types.NamespacedName{
-	// 			Name:      aclKeyName,
-	// 			Namespace: "default",
-	// 		}
-
-	// 		toCreate := &databricksv1alpha1.SecretScope{
-	// 			ObjectMeta: metav1.ObjectMeta{
-	// 				Name:      key.Name,
-	// 				Namespace: key.Namespace,
-	// 			},
-	// 			Spec: spec,
-	// 		}
-
-	// 		// setup k8s secret
-	// 		k8SecretKey := types.NamespacedName{
-	// 			Name:      "k8secret",
-	// 			Namespace: "default",
-	// 		}
-
-	// 		data := make(map[string][]byte)
-	// 		data["username"] = []byte("Josh")
-	// 		k8Secret := &v1.Secret{
-	// 			ObjectMeta: metav1.ObjectMeta{
-	// 				Name:      k8SecretKey.Name,
-	// 				Namespace: k8SecretKey.Namespace,
-	// 			},
-	// 			Data: data,
-	// 		}
-	// 		Expect(k8sClient.Create(context.Background(), k8Secret)).Should(Succeed())
-	// 		time.Sleep(time.Second * 8)
-	// 		defer func() {
-	// 			Expect(k8sClient.Delete(context.Background(), k8Secret)).Should(Succeed())
-	// 			time.Sleep(time.Second * 5)
-	// 		}()
-
-	// 		By("Creating the scope successfully")
-	// 		Expect(k8sClient.Create(context.Background(), toCreate)).Should(Succeed())
-	// 		time.Sleep(time.Second * 5)
-
-	// 		By("Scope has been marked as IsSubmitted")
-	// 		fetched := &databricksv1alpha1.SecretScope{}
-	// 		Eventually(func() bool {
-	// 			_ = k8sClient.Get(context.Background(), key, fetched)
-	// 			return fetched.IsSubmitted()
-	// 		}, timeout, interval).Should(BeFalse())
-
-	// 		By("Deleting the scope")
-	// 		Eventually(func() error {
-	// 			f := &databricksv1alpha1.SecretScope{}
-	// 			_ = k8sClient.Get(context.Background(), key, f)
-	// 			return k8sClient.Delete(context.Background(), f)
-	// 		}, timeout, interval).Should(Succeed())
-
-	// 		Eventually(func() error {
-	// 			f := &databricksv1alpha1.SecretScope{}
-	// 			return k8sClient.Get(context.Background(), key, f)
-	// 		}, timeout, interval).ShouldNot(Succeed())
-	// 	})
-	// })
 })
