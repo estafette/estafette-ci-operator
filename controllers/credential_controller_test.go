@@ -25,39 +25,35 @@ var _ = Describe("Credential Controller", func() {
 
 	BeforeEach(func() {
 		// failed test runs that don't clean up leave resources behind.
-		keys := []string{credentialKeyName, privateCredentialKeyName}
-		for _, value := range keys {
-
-			cred := &civ1.Credential{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      value,
-					Namespace: "default",
-				},
-			}
-
-			_ = k8sClient.Delete(context.Background(), cred)
+		configmap := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "estafette-external-credentials",
+				Namespace: "default",
+			},
 		}
+
+		_ = k8sClient.Delete(context.Background(), configmap)
 	})
 
 	AfterEach(func() {
 		// Add any teardown steps that needs to be executed after each test
-		keys := []string{credentialKeyName, privateCredentialKeyName}
-		for _, value := range keys {
-
-			cred := &civ1.Credential{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      value,
-					Namespace: "default",
-				},
-			}
-
-			_ = k8sClient.Delete(context.Background(), cred)
+		configmap := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "estafette-external-credentials",
+				Namespace: "default",
+			},
 		}
+
+		_ = k8sClient.Delete(context.Background(), configmap)
 	})
 
-	Context("One crededential", func() {
-		It("Should handle credential correctly", func() {
+	Context("One credential", func() {
+		key := types.NamespacedName{
+			Name:      credentialKeyName,
+			Namespace: "default",
+		}
 
+		It("Should create credential and configmap with credential infos", func() {
 			spec := civ1.CredentialSpec{
 				Type:                 "container-registry",
 				WhitelistedPipelines: "github.com/estafette/.+",
@@ -67,11 +63,6 @@ var _ = Describe("Credential Controller", func() {
 					"username":   "estafettesvc",
 					"password":   "supersecretpassword",
 				},
-			}
-
-			key := types.NamespacedName{
-				Name:      credentialKeyName,
-				Namespace: "default",
 			}
 
 			configMapKey := types.NamespacedName{
@@ -132,10 +123,11 @@ var _ = Describe("Credential Controller", func() {
 
 			// assert
 			eventualResult.Should(Equal(string(expectedYaml)))
-
+		})
+		It("Should remove credential", func() {
 			By("Deleting the credential")
 			// act
-			eventualResult = Eventually(func() error {
+			eventualResult := Eventually(func() error {
 				f := &civ1.Credential{}
 				_ = k8sClient.Get(context.Background(), key, f)
 				return k8sClient.Delete(context.Background(), f)
@@ -155,34 +147,17 @@ var _ = Describe("Credential Controller", func() {
 		})
 	})
 
-	Context("Two credentials", func() {
-		It("Should handle two credentials correctly", func() {
+	Context("Two credentials applied to cluster", func() {
+		privateCredentialKey := types.NamespacedName{
+			Name:      privateCredentialKeyName,
+			Namespace: "default",
+		}
 
-			specGkeCredential := civ1.CredentialSpec{
-				Type:                     "kubernetes-engine",
-				WhitelistedTrustedImages: "extensions/gke",
-				AdditionalProperties: map[string]interface{}{
-					"project": "estafette-project",
-					"cluster": "estafette-cluster",
-					"defaults": map[string]interface{}{
-						"namespace": "estafette-ns",
-					},
-				},
-			}
-
-			gkeCredentialKey := types.NamespacedName{
-				Name:      gkeCredentialKeyName,
-				Namespace: "default",
-			}
-
-			gkeCredentialToCreate := &civ1.Credential{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      gkeCredentialKey.Name,
-					Namespace: gkeCredentialKey.Namespace,
-				},
-				Spec:   specGkeCredential,
-				Status: civ1.CredentialStatus{},
-			}
+		gkeCredentialKey := types.NamespacedName{
+			Name:      gkeCredentialKeyName,
+			Namespace: "default",
+		}
+		It("Should create two credentials and  update configmap with credentials infos", func() {
 
 			privateCredentialSpec := civ1.CredentialSpec{
 				Type: "container-registry",
@@ -194,17 +169,33 @@ var _ = Describe("Credential Controller", func() {
 				},
 			}
 
-			privateCredentialKey := types.NamespacedName{
-				Name:      privateCredentialKeyName,
-				Namespace: "default",
-			}
-
 			privateCredentialToCreate := &civ1.Credential{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      privateCredentialKey.Name,
 					Namespace: privateCredentialKey.Namespace,
 				},
 				Spec:   privateCredentialSpec,
+				Status: civ1.CredentialStatus{},
+			}
+
+			gkeCredentialSpec := civ1.CredentialSpec{
+				Type:                     "kubernetes-engine",
+				WhitelistedTrustedImages: "extensions/gke",
+				AdditionalProperties: map[string]interface{}{
+					"project": "estafette-project",
+					"cluster": "estafette-cluster",
+					"defaults": map[string]interface{}{
+						"namespace": "estafette-ns",
+					},
+				},
+			}
+
+			gkeCredentialToCreate := &civ1.Credential{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      gkeCredentialKey.Name,
+					Namespace: gkeCredentialKey.Namespace,
+				},
+				Spec:   gkeCredentialSpec,
 				Status: civ1.CredentialStatus{},
 			}
 
@@ -303,11 +294,12 @@ var _ = Describe("Credential Controller", func() {
 
 			// assert
 			eventualResult.Should(Equal(string(expectedPrivateCredentialYaml)))
-
+		})
+		It("Should remove credentials", func() {
 			By("Deleting private credential")
 
 			// act
-			eventualResult = Eventually(func() error {
+			eventualResult := Eventually(func() error {
 				f := &civ1.Credential{}
 				_ = k8sClient.Get(context.Background(), privateCredentialKey, f)
 				return k8sClient.Delete(context.Background(), f)
@@ -324,7 +316,27 @@ var _ = Describe("Credential Controller", func() {
 
 			// assert
 			eventualResult.ShouldNot(Succeed())
+
+			By("Deleting gke credential")
+
+			// act
+			eventualResult = Eventually(func() error {
+				f := &civ1.Credential{}
+				_ = k8sClient.Get(context.Background(), gkeCredentialKey, f)
+				return k8sClient.Delete(context.Background(), f)
+			}, timeout, interval)
+
+			// assert
+			eventualResult.Should(Succeed())
+
+			// act
+			eventualResult = Eventually(func() error {
+				f := &civ1.Credential{}
+				return k8sClient.Get(context.Background(), gkeCredentialKey, f)
+			}, timeout, interval)
+
+			// assert
+			eventualResult.ShouldNot(Succeed())
 		})
 	})
-
 })
