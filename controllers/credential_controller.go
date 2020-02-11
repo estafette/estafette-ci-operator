@@ -246,6 +246,7 @@ func (r *CredentialReconciler) handleCredentialDeletion(req ctrl.Request, childC
 				log.Error(err, "unable to delete ConfigMap for Credential", "configmap", configmap)
 				return ctrl.Result{}, err
 			}
+			return ctrl.Result{}, nil
 		}
 
 		credentialsData["credentials"] = newCredentials
@@ -260,7 +261,7 @@ func (r *CredentialReconciler) handleCredentialDeletion(req ctrl.Request, childC
 		}
 
 		if err := r.Update(ctx, &configmap); err != nil {
-			log.Error(err, "unable to update ConfigMap for Credential", "configmap", configmap)
+			log.Error(err, "unable to update ConfigMap for deletion of Credential", "configmap", configmap)
 			return ctrl.Result{}, err
 		}
 	}
