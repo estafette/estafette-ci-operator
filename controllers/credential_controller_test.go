@@ -89,18 +89,26 @@ var _ = Describe("Credential Controller", func() {
 			}
 
 			By("Creating the credential successfully")
-			Expect(k8sClient.Create(context.Background(), toCreate)).Should(Succeed())
-			time.Sleep(time.Second * 2)
+			// act
+			expectedResult := Expect(k8sClient.Create(context.Background(), toCreate))
 
+			// assert
+			expectedResult.Should(Succeed())
+
+			time.Sleep(time.Second * 2)
 			fetched := &civ1.Credential{}
-			Eventually(func() string {
+
+			// act
+			eventualResult := Eventually(func() string {
 				_ = k8sClient.Get(context.Background(), key, fetched)
 				return fetched.Status.ConfigMap
-			}, timeout, interval).Should(Equal(configMapKey.Name))
+			}, timeout, interval)
+
+			// assert
+			eventualResult.Should(Equal(configMapKey.Name))
 
 			By("Creating configmap successfully")
 			fetchedConfigMap := &corev1.ConfigMap{}
-
 			expectedConfig := map[string]interface{}{
 				"name":                 credentialKeyName,
 				"type":                 "container-registry",
@@ -116,26 +124,38 @@ var _ = Describe("Credential Controller", func() {
 			expectedYaml, err := yaml.Marshal(expectedCredentialsData)
 			Expect(err).To(BeNil())
 
-			Eventually(func() string {
+			// act
+			eventualResult = Eventually(func() string {
 				_ = k8sClient.Get(context.Background(), configMapKey, fetchedConfigMap)
 				return fetchedConfigMap.Data["credentials-config.yaml"]
-			}, timeout, interval).Should(Equal(string(expectedYaml)))
+			}, timeout, interval)
+
+			// assert
+			eventualResult.Should(Equal(string(expectedYaml)))
 
 			By("Deleting the credential")
-			Eventually(func() error {
+			// act
+			eventualResult = Eventually(func() error {
 				f := &civ1.Credential{}
 				_ = k8sClient.Get(context.Background(), key, f)
 				return k8sClient.Delete(context.Background(), f)
-			}, timeout, interval).Should(Succeed())
+			}, timeout, interval)
 
-			Eventually(func() error {
+			// assert
+			eventualResult.Should(Succeed())
+
+			// act (check if credential is really deleted)
+			eventualResult = Eventually(func() error {
 				f := &civ1.Credential{}
 				return k8sClient.Get(context.Background(), key, f)
-			}, timeout, interval).ShouldNot(Succeed())
+			}, timeout, interval)
+
+			// assert
+			eventualResult.ShouldNot(Succeed())
 		})
 	})
 
-	Context("Two crededentials", func() {
+	Context("Two credentials", func() {
 		It("Should handle two credentials correctly", func() {
 
 			specGkeCredential := civ1.CredentialSpec{
@@ -194,14 +214,23 @@ var _ = Describe("Credential Controller", func() {
 			}
 
 			By("Creating gke credential successfully")
-			Expect(k8sClient.Create(context.Background(), gkeCredentialToCreate)).Should(Succeed())
+			// act
+			expectedResult := Expect(k8sClient.Create(context.Background(), gkeCredentialToCreate))
+
+			// assert
+			expectedResult.Should(Succeed())
 			time.Sleep(time.Second * 2)
 
 			fetchedGkeCredential := &civ1.Credential{}
-			Eventually(func() string {
+
+			// act
+			eventualResult := Eventually(func() string {
 				_ = k8sClient.Get(context.Background(), gkeCredentialKey, fetchedGkeCredential)
 				return fetchedGkeCredential.Status.ConfigMap
-			}, timeout, interval).Should(Equal(configMapKey.Name))
+			}, timeout, interval)
+
+			// assert
+			eventualResult.Should(Equal(configMapKey.Name))
 
 			By("Creating configmap successfully")
 			fetchedConfigMap := &corev1.ConfigMap{}
@@ -222,20 +251,34 @@ var _ = Describe("Credential Controller", func() {
 			expectedGkeCredentialYaml, err := yaml.Marshal(expectedCredentialsData)
 			Expect(err).To(BeNil())
 
-			Eventually(func() string {
+			// act
+			eventualResult = Eventually(func() string {
 				_ = k8sClient.Get(context.Background(), configMapKey, fetchedConfigMap)
 				return fetchedConfigMap.Data["credentials-config.yaml"]
-			}, timeout, interval).Should(Equal(string(expectedGkeCredentialYaml)))
+			}, timeout, interval)
+
+			// assert
+			eventualResult.Should(Equal(string(expectedGkeCredentialYaml)))
 
 			By("Creating private credential successfully")
-			Expect(k8sClient.Create(context.Background(), privateCredentialToCreate)).Should(Succeed())
+
+			// act
+			expectedResult = Expect(k8sClient.Create(context.Background(), privateCredentialToCreate))
+
+			// assert
+			expectedResult.Should(Succeed())
 			time.Sleep(time.Second * 2)
 
 			fetchedPrivateCredential := &civ1.Credential{}
-			Eventually(func() string {
+
+			// act
+			eventualResult = Eventually(func() string {
 				_ = k8sClient.Get(context.Background(), privateCredentialKey, fetchedPrivateCredential)
 				return fetchedPrivateCredential.Status.ConfigMap
-			}, timeout, interval).Should(Equal(configMapKey.Name))
+			}, timeout, interval)
+
+			// assert
+			eventualResult.Should(Equal(configMapKey.Name))
 
 			By("Updating the configmap successfully")
 			privateCredentialExpectedConfig := map[string]interface{}{
@@ -252,22 +295,35 @@ var _ = Describe("Credential Controller", func() {
 			expectedPrivateCredentialYaml, err := yaml.Marshal(expectedCredentialsData)
 			Expect(err).To(BeNil())
 
-			Eventually(func() string {
+			// act
+			eventualResult = Eventually(func() string {
 				_ = k8sClient.Get(context.Background(), configMapKey, fetchedConfigMap)
 				return fetchedConfigMap.Data["credentials-config.yaml"]
-			}, timeout, interval).Should(Equal(string(expectedPrivateCredentialYaml)))
+			}, timeout, interval)
+
+			// assert
+			eventualResult.Should(Equal(string(expectedPrivateCredentialYaml)))
 
 			By("Deleting private credential")
-			Eventually(func() error {
+
+			// act
+			eventualResult = Eventually(func() error {
 				f := &civ1.Credential{}
 				_ = k8sClient.Get(context.Background(), privateCredentialKey, f)
 				return k8sClient.Delete(context.Background(), f)
-			}, timeout, interval).Should(Succeed())
+			}, timeout, interval)
 
-			Eventually(func() error {
+			// assert
+			eventualResult.Should(Succeed())
+
+			// act
+			eventualResult = Eventually(func() error {
 				f := &civ1.Credential{}
 				return k8sClient.Get(context.Background(), privateCredentialKey, f)
-			}, timeout, interval).ShouldNot(Succeed())
+			}, timeout, interval)
+
+			// assert
+			eventualResult.ShouldNot(Succeed())
 		})
 	})
 
